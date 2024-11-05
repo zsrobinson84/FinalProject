@@ -1,0 +1,271 @@
+from cmu_graphics import *
+import random, math, copy
+
+#-------------------------------------- oop ------------------------------------
+class Box:
+    def __init__(self, height, color, coord):
+        self.height = height
+        self.color = color
+        self.coord = coord
+        self.isHighlighted = False
+        self.isMax = False
+        self.show = True
+        self.isFinal = False
+    
+    def plsSwap(self, other):
+        self.coord,other.coord = other.coord, self.coord
+    
+    def highlight(self):
+        self.isHighlighted = True
+    
+    def setMax(self):
+        self.isMax = True
+    
+    def deMaxHighlight(self):
+        self.isHighlighted = self.isMax = False
+    
+    def showBox(self):
+        self.show = True
+    
+    def noShow(self):
+        self.show = False
+        self.isHighlighted = True
+    
+    def makeFinal(self):
+        self.isFinal = True
+        self.show = True
+        self.color = 'black'
+
+class sideBox:
+    def __init__(self, title, selected, coord, function):
+        self.title = title
+        self.selected = selected
+        self.left, self.top = coord
+        self.width, self.height = 90, 50
+        self.function = function
+    
+    def draw(self):
+        color = 'darkgray' if self.selected else 'lightgray'
+        drawRect(self.left,self.top, self.width, self.height, fill = color)
+        drawLabel(self.title,self.left+45, self.top+25)
+    
+    def checkMousePress(self, app, mouseX, mouseY):
+        if ((self.left <= mouseX <= self.left + self.width) and 
+             self.top <= mouseY <= self.top+self.height):
+                app.sideBox[5].selected = False
+                if self.title == 'Run' and app.paused:
+                    self.selected = True
+                    app.sideBox[2].selected = False
+                    app.sideBox[3].selected = False
+                elif self.title == 'Pause':
+                    self.selected = True
+                    app.sideBox[1].selected = False
+                    app.sideBox[3].selected = False
+                elif self.title == 'Step':
+                    self.selected = True
+                    app.sideBox[1].selected = False
+                    app.sideBox[2].selected = False
+                elif self.title == 'Fast Mode':
+                    self.selected = not self.selected
+                elif self.title == 'New Size':
+                    self.selected = True
+                self.function(app)
+
+#-------------------------------------- app ------------------------------------
+def onAppStart(app):
+    app.width = 800
+    app.height = 450
+    app.boardLength = 550
+    app.boardHeight = 350
+    app.columnStart = 225
+    app.boardLeft = app.boardTop = 50
+    app.numCols = 16 
+    resetAll(app)
+
+def resetAll(app):
+    app.minSize = 8
+    app.heights = [133-((133/app.numCols)*i)for i in range(app.numCols)]
+    app.maxSize = max(app.heights)
+    app.colWidth = None
+    app.totalStep= None
+    app.board = ([Box(getHeight(app.heights), 'lightSteelBlue', 
+                  getCoords(app, i)) for i in range(app.numCols)])
+    app.board.append(Box(10,'lightSteelBlue',(300,300)))
+    app.answerKey = getAnswerKey(app)
+    app.maxVals = [0]
+    app.highlights = [0]
+    app.show = [0]
+    titles = ['New Sort', 'Run', 'Pause', 'Step', 'Fast Mode', 'New Size']
+    XY = [(650,i) for i in range(50,app.boardHeight+50,60)]
+    function = [newSort, run, pause,step,fastMode,newSize]
+    app.sideBox = ([sideBox(titles[i], False, XY[i],function[i]) 
+                    for i in range(len(titles))])
+    app.paused = True
+    app.fastMode = False
+    app.stepsPerSecond = 1
+    app.count = 0
+    app.steps = 1
+    app.boxTwo = app.boardLeft+7
+    app.size = ''
+    app.gameStart = False
+    app.newSize = False
+
+def onMousePress(app, mouseX, mouseY):
+    for sideBox in app.sideBox:
+        sideBox.checkMousePress(app,mouseX, mouseY)
+
+def onKeyPress(app, key):
+    if app.newSize:
+        if key.isdigit():
+            app.size += key
+        if key == 'enter' and 1 <= int(app.size) <= 32:
+            app.numCols = int(app.size)
+            resetAll(app)
+        elif key == 'enter' and not(1 <= int(app.size) <= 32):
+            app.size = ''
+    
+def redrawAll(app):
+    drawBoard(app)
+    drawCols(app)
+
+def onStep(app):
+    app.stepsPerSecond = 40 if app.fastMode else 7
+    if not app.paused:
+        takeStep(app)
+
+def takeStep(app): 
+    if app.answerKey == []:
+        return
+    step = app.answerKey[0]
+    if step[0] == 'max':
+        maxIndex = step[1]
+        app.board[maxIndex].setMax()
+        oldMax = app.maxVals[0]
+        app.board[oldMax].deMaxHighlight()
+        app.maxVals.pop(0)
+        app.maxVals.append(maxIndex)
+    elif step[0] == 'compare':
+        app.board[step[1]].highlight()
+        current = app.highlights[0]
+        app.board[current].deMaxHighlight()
+        app.highlights.pop(0)
+        app.highlights.append(step[1])
+    elif step[0] == 'temp':  #move max to temp location
+        maxIndex, temp = step[1], step[2]
+        app.board[maxIndex], app.board[temp] = app.board[temp], app.board[maxIndex]
+        app.board[maxIndex].plsSwap(app.board[temp])
+        app.board[maxIndex].noShow()
+    elif step[0] == 'back':#move current end to old location
+        end, temp = step[1], step[2]
+        app.board[end], app.board[temp] = app.board[temp], app.board[end]
+        app.board[end].plsSwap(app.board[temp])
+        app.board[temp].showBox()
+        app.board[end].noShow()
+    elif step[0] == 'final': #move max to the end
+        temp, end = step[1], step[2]
+        app.board[temp], app.board[end] = app.board[end], app.board[temp]
+        app.board[end].plsSwap(app.board[temp])
+        app.board[end].makeFinal()
+        app.board[end].showBox
+    app.answerKey.pop(0)
+
+def getAnswerKey(app):
+    board = copy.deepcopy(app.board)
+    val = len(board)-1
+    answer = []
+    for j in range(val):
+        answer.append(('max',0))
+        maxHeight, maxIndex = board[0].height, 0
+        for i in range(1,val-j):
+            elem = board[i] 
+            answer.append(('compare',i, maxIndex)) 
+            if elem.height > maxHeight:
+                answer.append(('max',i))
+                maxIndex, maxHeight = i, elem.height
+        end = val-1-j
+        tempIndex = val #outside of range
+        answer.append(('temp', maxIndex, tempIndex)) #move max to temp location
+        answer.append(('back', end, maxIndex)) #move current end to old location
+        answer.append(('max', 0))
+        answer.append(('final',tempIndex,end)) #move max to the end
+        swap(board, maxIndex,end) #('copy', one we are moving, location)
+    return answer
+
+def swap(board, maxIndex, end):
+    (board[maxIndex], board[end]) = (board[end], board[maxIndex])
+
+def drawBoard(app):
+    drawLabel('Visual Selection Sort',130,40, size = 17)
+    drawRect(app.boardLeft, app.boardTop, app.boardLength,app.boardHeight, 
+             fill = 'snow', border = 'darkOliveGreen', borderWidth=1)
+    if app.newSize:
+        drawLabel(f'New Size: {app.size}', 650,410,align='left')
+        drawLabel(f'Please enter numbers to input the new size; then click '+
+                  'enter to enact the change (maximum size of 32)',742,430,
+                  align='right')
+    for sideBox in app.sideBox:
+        sideBox.draw()
+
+def drawCols(app):
+    for i in range(len(app.board)-1):
+        elem = app.board[i]
+        x,y = elem.coord
+        if ((elem.isHighlighted or elem.isMax or not elem.show) and
+             app.answerKey != [] and app.gameStart):
+            drawRect(x-2,app.columnStart-app.maxSize-10, app.colWidth+4,
+                     app.maxSize+12,fill=None,
+                     border='seaGreen', borderWidth=2) 
+        if elem.show:
+            drawRect(x,y-elem.height,app.colWidth,elem.height,fill = elem.color,
+                     border='black', borderWidth=1) 
+        elif not elem.show:
+            newX = app.boardLeft+(app.boardLength)/2-(app.colWidth*1.5/2)
+            drawRect(newX,260-elem.height,app.colWidth*1.5,103, fill = elem.color,
+                     border = 'black', borderWidth=1)
+    if app.answerKey != [] and app.gameStart:
+        index = app.maxVals[0]
+        elem2 = app.board[index]
+        x2,y2 = elem2.coord
+        drawRect(x2-2,app.columnStart-app.maxSize-10,app.colWidth+4,
+                     app.maxSize+12,fill=None,
+                     border='seaGreen', borderWidth=2) 
+        labelX = x2+(app.colWidth)/2
+        drawLabel('max',labelX,app.columnStart+10)
+
+def getHeight(heights):
+    height = random.choice(heights)
+    heights.remove(height)
+    return height
+
+def getCoords(app, index):
+    #edits app.colWidth and returns x,y coord of top left corner of cols
+    app.totalStep = (app.boardLength-8)/app.numCols
+    app.colWidth = (2/3)*app.totalStep
+    step = (1/3)*app.totalStep
+    xVal = (app.boardLeft+4+0.5*step) + (app.colWidth+step)*index
+    return (xVal,app.columnStart)
+
+#----------------------------------- buttons -----------------------------------
+def newSort(app):
+    resetAll(app)
+    
+def run(app):
+    app.gameStart = True
+    app.paused = False
+
+def pause(app):
+    if app.gameStart:
+        app.paused = True
+
+def step(app):
+    takeStep(app)
+
+def fastMode(app):
+    app.fastMode = not app.fastMode
+
+def newSize(app):
+    app.newSize = True
+
+def main():
+    runApp()
+main()
