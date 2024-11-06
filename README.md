@@ -13,7 +13,6 @@ Code Description:
 	 I created the Box class and initialized an object for each individual column. This enabled me to keep track of the height, color, and coordinates. Additionally, it helped me track if a column was the tallest, sorted, highlighted, or shown. A column is highlighted if it is the current column being compared or if it is the max column. I also created the sideBox class for the interactive buttons on the right of the screen, making my code more efficient when drawing the boxes, and helping me execute the correct action if a button was selected.   
   At a high level my code works by creating and following an answer key. After initializing an object for each column and storing it in a list named app.board, I call getAnswerKey(app). This method uses app.board to create a two-dimensional list named “answer” that contains every step needed to transform the unsorted columns into sorted ones. Then, in my method takeStep(app), the program moves through every step in order and adjusts the graphics accordingly. 
 
-Link to code:
 Please note: this visualization was created using a CMU library (cmu_graphics) and will not run on without it. However, I've included a link to install the library, along with a link to a demonstration video showing the program in action.
 
 Video link of program: https://youtu.be/qbdmu-rRJYk 
